@@ -2,7 +2,7 @@ FROM node:slim AS deps
 WORKDIR /app
 
 RUN corepack enable \
- && corepack prepare pnpm@8 --activate
+ && corepack prepare pnpm@latest --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 
