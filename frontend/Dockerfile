@@ -1,31 +1,31 @@
-FROM node:slim AS builder
-RUN corepack enable \
-  && corepack prepare pnpm@latest --activate
+FROM node:slim AS base
+WORKDIR /app
 
+RUN corepack enable \
+ && corepack prepare pnpm@latest --activate
+
+FROM base AS deps
 WORKDIR /app
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-RUN pnpm fetch
+COPY package.json ./
 
-COPY frontend/package.json frontend/next.config.js ./
+RUN pnpm install --frozen-lockfile --filter frontend...
+
+FROM deps AS frontend-builder
+WORKDIR /app/frontend
 COPY frontend/ ./
 
-RUN pnpm install --frozen-lockfile && pnpm run build
+COPY --from=deps /app/node_modules /app/node_modules
 
-FROM node:slim AS runner
+RUN pnpm run build
 
-RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
-USER nextjs
+FROM nginx:stable-alpine AS frontend-runner
+WORKDIR /usr/share/nginx/html
 
-WORKDIR /app
-ENV NODE_ENV=production
+COPY --from=frontend-builder /app/frontend/out ./
 
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+COPY nginx.conf /etc/nginx/nginx.conf
 
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./
-
-EXPOSE 3000
-CMD ["pnpm", "start"]
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
