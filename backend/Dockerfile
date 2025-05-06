@@ -1,21 +1,17 @@
-FROM node:slim AS base
+FROM node:slim AS deps
 WORKDIR /app
 
-FROM base AS deps
-
 RUN corepack enable \
- && corepack prepare pnpm@latest --activate
+ && corepack prepare pnpm@8 --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 
-RUN pnpm install --frozen-lockfile --filter ./backend...
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
-
 WORKDIR /app/backend
 
 COPY backend/ ./
-
 RUN pnpm run build
 
 FROM node:slim AS runner
