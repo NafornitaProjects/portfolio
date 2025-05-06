@@ -1,7 +1,5 @@
 FROM node:slim AS base
 
-RUN apk add --no-cache libc6-compat
-
 WORKDIR /app
 
 FROM base AS deps
@@ -35,7 +33,7 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/server.js ./server.js   # standalone entrypoint
+COPY --from=builder /app/server.js ./server.js
 
 USER nextjs
 
