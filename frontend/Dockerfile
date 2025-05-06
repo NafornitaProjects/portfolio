@@ -1,5 +1,6 @@
 FROM node:slim AS builder
-RUN corepack enable
+RUN corepack enable \
+  && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
