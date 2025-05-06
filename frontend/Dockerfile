@@ -1,13 +1,17 @@
 FROM node:slim AS base
 WORKDIR /app
-RUN corepack enable \
- && corepack prepare pnpm@latest --activate
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      python3 make g++ libvips-dev \
+ && corepack enable \
+ && corepack prepare pnpm@latest --activate \
+ && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 WORKDIR /app
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-
 COPY frontend/package.json frontend/package.json
 
 RUN pnpm install --frozen-lockfile --filter ./frontend...
@@ -16,7 +20,6 @@ FROM deps AS builder
 WORKDIR /app/frontend
 
 COPY frontend/ ./
-
 COPY --from=deps /app/node_modules /app/node_modules
 
 RUN pnpm run build \

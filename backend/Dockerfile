@@ -1,7 +1,12 @@
 FROM node:slim AS base
 WORKDIR /app
-RUN corepack enable \
- && corepack prepare pnpm@latest --activate
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      python3 make g++ libvips-dev \
+ && corepack enable \
+ && corepack prepare pnpm@latest --activate \
+ && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 WORKDIR /app
