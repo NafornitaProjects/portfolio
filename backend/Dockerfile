@@ -12,7 +12,7 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 RUN pnpm fetch \
  && pnpm install --frozen-lockfile
 
-FROM base AS builder
+FROM deps AS builder
 
 COPY --from=deps /app/node_modules ./node_modules
 
