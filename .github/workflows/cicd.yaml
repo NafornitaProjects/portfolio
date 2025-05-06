@@ -1,0 +1,94 @@
+name: CI/CD Monorepo
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v3
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.REGISTRY }}/backend:${{ github.sha }}
+            ${{ secrets.REGISTRY }}/backend:latest
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v3
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.REGISTRY }}/frontend:${{ github.sha }}
+            ${{ secrets.REGISTRY }}/frontend:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout app monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Helm Charts repo
+        uses: actions/checkout@v4
+        with:
+          repository: NafornitaProjects/helm-charts
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: helm-charts
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+
+      - name: Render and collect manifests
+        run: |
+          mkdir -p manifests
+          # Render backend into pure YAML
+          helm template backend helm-charts/backend \
+            --namespace prod \
+            --set image.repository=${{ secrets.REGISTRY }}/backend \
+            --set image.tag=${{ github.sha }} \
+            > manifests/backend.yaml
+          # Render frontend into pure YAML
+          helm template frontend helm-charts/frontend \
+            --namespace prod \
+            --set image.repository=${{ secrets.REGISTRY }}/frontend \
+            --set image.tag=${{ github.sha }} \
+            > manifests/frontend.yaml
+
+      - name: Apply manifests to cluster
+        run: |
+          kubectl apply -f manifests/
