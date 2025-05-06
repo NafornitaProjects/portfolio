@@ -4,11 +4,11 @@ WORKDIR /app
 FROM base AS deps
 
 RUN corepack enable \
- && corepack prepare pnpm@8 --activate
+ && corepack prepare pnpm@latest --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 
-RUN pnpm install --frozen-lockfile --filter backend...
+RUN pnpm install --frozen-lockfile --filter ./backend...
 
 FROM deps AS builder
 
