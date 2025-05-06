@@ -1,16 +1,15 @@
 FROM node:slim AS builder
-
 RUN corepack enable
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+RUN pnpm fetch
 
-RUN pnpm install --frozen-lockfile
+COPY frontend/package.json frontend/next.config.js ./
+COPY frontend/ ./
 
-COPY . .
-RUN pnpm run build
-
+RUN pnpm install --frozen-lockfile && pnpm run build
 
 FROM node:slim AS runner
 
