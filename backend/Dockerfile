@@ -1,31 +1,38 @@
 FROM node:slim AS base
 WORKDIR /app
+
 RUN corepack enable \
  && corepack prepare pnpm@latest --activate
 
 FROM base AS deps
 WORKDIR /app
 
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json ./
 
-RUN pnpm install --frozen-lockfile --filter ./backend...
+# install only frontend + backend deps at once
+RUN pnpm install --frozen-lockfile --filter backend...
 
-FROM deps AS builder
+FROM deps AS backend-builder
 WORKDIR /app/backend
 COPY backend/ ./
+
+COPY --from=deps /app/node_modules /app/node_modules
+
 RUN pnpm run build
 
-FROM node:slim AS runner
-WORKDIR /app
-ENV NODE_ENV=production PORT=3000
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 nextjs \
- && mkdir .next
+FROM node:slim AS backend-runner
+WORKDIR /app/backend
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/server.js ./
+COPY --from=backend-builder /app/backend/.next .next
+COPY --from=backend-builder /app/node_modules node_modules
+COPY --from=backend-builder /app/backend/package.json ./
 
-USER nextjs
+RUN addgroup --system app && adduser --system --ingroup app app
+USER app
+
 EXPOSE 3000
-CMD ["node", "server.js"]
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD curl --fail http://localhost:3000/health || exit 1
+
+CMD ["node", ".next/server/index.js"]
