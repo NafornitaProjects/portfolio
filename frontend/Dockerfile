@@ -3,10 +3,10 @@ WORKDIR /app
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      python3 make g++ libvips-dev \
+      python3 build-essential g++ libvips-dev \
+ && rm -rf /var/lib/apt/lists/* \
  && corepack enable \
- && corepack prepare pnpm@latest --activate \
- && rm -rf /var/lib/apt/lists/*
+ && corepack prepare pnpm@latest --activate
 
 FROM base AS deps
 WORKDIR /app
