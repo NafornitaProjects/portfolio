@@ -22,12 +22,6 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: prepare-build-secrets
-        run: |
-          mkdir -p .build_secrets
-          printf '%s' "${{ secrets.DATABASE_URI }}" > .build_secrets/mongodb_uri
-          printf '%s' "${{ secrets.PAYLOAD_SECRET }}" > .build_secrets/payload_secret
-
       - uses: docker/build-push-action@v3
         with:
           context: .
@@ -36,9 +30,9 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          secret-files: |
-            id=mongodb_uri,src=.build_secrets/mongodb_uri
-            id=payload_secret,src=.build_secrets/payload_secret
+          secrets: |
+            mongodb_uri=${{ secrets.DATABASE_URI }}
+            payload_secret=${{ secrets.PAYLOAD_SECRET }}
 
       - uses: docker/build-push-action@v3
         with:
