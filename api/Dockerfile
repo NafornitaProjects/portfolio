@@ -13,9 +13,12 @@ WORKDIR /app
 COPY --from=deps /app /app
 COPY api/ api/
 
-RUN --mount=type=secret,id=mongodb_uri,env=MONGODB_URI \
-    --mount=type=secret,id=payload_secret,env=PAYLOAD_SECRET \
-    pnpm --filter ./api... run build
+RUN --mount=type=secret,id=mongodb_uri \
+    --mount=type=secret,id=payload_secret \
+    export MONGODB_URI="$(cat /run/secrets/mongodb_uri)" \
+           PAYLOAD_SECRET="$(cat /run/secrets/payload_secret)" && \
+    pnpm --filter ./api... run build && \
+    unset MONGODB_URI PAYLOAD_SECRET
 
 FROM node:slim AS runner
 WORKDIR /app/api
