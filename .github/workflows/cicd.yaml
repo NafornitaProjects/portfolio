@@ -26,21 +26,21 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./backend/Dockerfile
+          file: ./api/Dockerfile
           push: true
           tags: |
-            ${{ secrets.REGISTRY }}/backend:${{ github.sha }}
-            ${{ secrets.REGISTRY }}/backend:latest
+            ${{ secrets.REGISTRY }}/api:${{ github.sha }}
+            ${{ secrets.REGISTRY }}/api:latest
 
       - name: Build & Push Frontend
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./frontend/Dockerfile
+          file: ./www/Dockerfile
           push: true
           tags: |
-            ${{ secrets.REGISTRY }}/frontend:${{ github.sha }}
-            ${{ secrets.REGISTRY }}/frontend:latest
+            ${{ secrets.REGISTRY }}/www:${{ github.sha }}
+            ${{ secrets.REGISTRY }}/www:latest
 
   deploy:
     needs: build-and-push
@@ -76,18 +76,18 @@ jobs:
       - name: Render and collect manifests
         run: |
           mkdir -p manifests
-          # Render backend into pure YAML
-          helm template backend helm-charts/backend \
+          # Render api into pure YAML
+          helm template api helm-charts/api \
             --namespace prod \
-            --set image.repository=${{ secrets.REGISTRY }}/backend \
+            --set image.repository=${{ secrets.REGISTRY }}/api \
             --set image.tag=${{ github.sha }} \
-            > manifests/backend.yaml
-          # Render frontend into pure YAML
-          helm template frontend helm-charts/frontend \
+            > manifests/api.yaml
+          # Render www into pure YAML
+          helm template www helm-charts/www \
             --namespace prod \
-            --set image.repository=${{ secrets.REGISTRY }}/frontend \
+            --set image.repository=${{ secrets.REGISTRY }}/www \
             --set image.tag=${{ github.sha }} \
-            > manifests/frontend.yaml
+            > manifests/www.yaml
 
       - name: Apply manifests to cluster
         run: |

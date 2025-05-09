@@ -7,20 +7,20 @@ RUN corepack enable \
 FROM base AS deps
 WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY backend/package.json backend/package.json
-RUN pnpm install --frozen-lockfile --filter ./backend...
+COPY api/package.json api/package.json
+RUN pnpm install --frozen-lockfile --filter ./api...
 
 FROM deps AS builder
-WORKDIR /app/backend
-COPY backend/ ./
+WORKDIR /app/api
+COPY api/ ./
 COPY --from=deps /app/node_modules /app/node_modules
 RUN pnpm run build
 
 FROM node:slim AS runner
-WORKDIR /app/backend
-COPY --from=builder /app/backend/.next .next
+WORKDIR /app/api
+COPY --from=builder /app/api/.next .next
 COPY --from=builder /app/node_modules node_modules
-COPY backend/package.json .
+COPY api/package.json .
 RUN addgroup --system app && adduser --system --ingroup app app
 USER app
 EXPOSE 3000

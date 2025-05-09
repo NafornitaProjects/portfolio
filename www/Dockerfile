@@ -8,14 +8,14 @@ FROM base AS deps
 WORKDIR /app
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY frontend/package.json frontend/package.json
+COPY www/package.json www/package.json
 
-RUN pnpm install --frozen-lockfile --filter ./frontend...
+RUN pnpm install --frozen-lockfile --filter ./www...
 
 FROM deps AS builder
-WORKDIR /app/frontend
+WORKDIR /app/www
 
-COPY frontend/ ./
+COPY www/ ./
 COPY --from=deps /app/node_modules /app/node_modules
 
 RUN pnpm run build \
@@ -24,7 +24,7 @@ RUN pnpm run build \
 FROM nginx:stable-alpine AS runner
 WORKDIR /usr/share/nginx/html
 
-COPY --from=builder /app/frontend/out ./
+COPY --from=builder /app/www/out ./
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
