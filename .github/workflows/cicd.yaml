@@ -31,8 +31,8 @@ jobs:
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
           secrets: |
-            mongodb_uri=${{ secrets.DATABASE_URI }}
-            payload_secret=${{ secrets.PAYLOAD_SECRET }}
+            id=mongodb_uri,value=${{ secrets.DATABASE_URI }}
+            id=payload_secret,value=${{ secrets.PAYLOAD_SECRET }}
 
       - uses: docker/build-push-action@v3
         with:
