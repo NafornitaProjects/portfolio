@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"pnpm run dev:server\" \"pnpm run dev:client\"",
-    "dev:server": "pnpm --filter backend dev",
-    "dev:client": "pnpm --filter frontend dev"
+    "dev:server": "pnpm --filter api dev",
+    "dev:client": "pnpm --filter www dev"
   },
   "keywords": [],
   "author": "",
