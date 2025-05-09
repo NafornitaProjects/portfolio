@@ -1,15 +1,6 @@
 FROM node:slim AS base
-
-ARG DATABASE_URI
-ARG PAYLOAD_SECRET
-
-ENV DATABASE_URI=$DATABASE_URI \
-    MONGODB_URI=$DATABASE_URI \
-    PAYLOAD_SECRET=$PAYLOAD_SECRET
-
 WORKDIR /app
-RUN corepack enable \
- && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 FROM base AS deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
@@ -17,27 +8,20 @@ COPY api/package.json api/package.json
 RUN pnpm install --frozen-lockfile --filter ./api...
 
 FROM base AS builder
+WORKDIR /app
 
-ARG DATABASE_URI
-ARG PAYLOAD_SECRET
-ENV DATABASE_URI=$DATABASE_URI \
-    MONGODB_URI=$DATABASE_URI \
-    PAYLOAD_SECRET=$PAYLOAD_SECRET
+COPY --from=deps /app /app
+COPY api/ api/
 
-WORKDIR /app/api
-COPY api/ ./
-COPY --from=deps /app/node_modules /app/node_modules
-RUN pnpm run build
+RUN --mount=type=secret,id=mongodb_uri,env=MONGODB_URI \
+    --mount=type=secret,id=payload_secret,env=PAYLOAD_SECRET \
+    pnpm --filter ./api... run build
 
 FROM node:slim AS runner
-
-ENV DATABASE_URI= \
-    MONGODB_URI= \
-    PAYLOAD_SECRET=
-
 WORKDIR /app/api
+
 COPY --from=builder /app/api/.next .next
-COPY --from=builder /app/node_modules node_modules
+COPY --from=builder /app/node_modules /app/node_modules
 COPY api/package.json .
 
 RUN addgroup --system app && adduser --system --ingroup app app

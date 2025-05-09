@@ -10,20 +10,19 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Checkout monorepo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@v2
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build & Push Backend
-        uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v3
         with:
           context: .
           file: ./api/Dockerfile
@@ -31,12 +30,11 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          build-args: |
-            DATABASE_URI=${{ secrets.DATABASE_URI }}
-            PAYLOAD_SECRET=${{ secrets.PAYLOAD_SECRET }}
+          secrets: |
+            mongodb_uri=${{ secrets.DATABASE_URI }}
+            payload_secret=${{ secrets.PAYLOAD_SECRET }}
 
-      - name: Build & Push Frontend
-        uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v3
         with:
           context: .
           file: ./www/Dockerfile
@@ -51,47 +49,34 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout app monorepo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Checkout Helm Charts repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: NafornitaProjects/helm-charts
           token: ${{ secrets.GITHUB_TOKEN }}
           path: helm-charts
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+      - uses: azure/setup-kubectl@v3
         with:
           version: latest
 
-      - name: Configure kubeconfig
-        run: |
+      - uses: azure/setup-helm@v1
+      - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           export KUBECONFIG=$PWD/kubeconfig
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v1
-
-      - name: Render and collect manifests
-        run: |
+      - run: |
           mkdir -p manifests
-          # Render api into pure YAML
           helm template api helm-charts/api \
             --namespace prod \
             --set image.repository=${{ secrets.REGISTRY }}/api \
             --set image.tag=${{ github.sha }} \
             > manifests/api.yaml
-          # Render www into pure YAML
           helm template www helm-charts/www \
             --namespace prod \
             --set image.repository=${{ secrets.REGISTRY }}/www \
             --set image.tag=${{ github.sha }} \
             > manifests/www.yaml
-
-      - name: Apply manifests to cluster
-        run: |
-          kubectl apply -f manifests/
+      - run: kubectl apply -f manifests/
