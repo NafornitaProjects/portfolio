@@ -31,6 +31,9 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
+          build-args: |
+            DATABASE_URI=${{ secrets.DATABASE_URI }}
+            PAYLOAD_SECRET=${{ secrets.PAYLOAD_SECRET }}
 
       - name: Build & Push Frontend
         uses: docker/build-push-action@v3
