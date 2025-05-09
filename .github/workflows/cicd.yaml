@@ -22,11 +22,7 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: build-backend
-        uses: docker/build-push-action@v3
-        env:
-          DATABASE_URI: ${{ secrets.DATABASE_URI }}
-          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+      - uses: docker/build-push-action@v3
         with:
           context: .
           file: ./api/Dockerfile
@@ -35,11 +31,10 @@ jobs:
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
           secrets: |
-            DATABASE_URI
-            PAYLOAD_SECRET
+            "mongodb_uri=${{ secrets.DATABASE_URI }}"
+            "payload_secret=${{ secrets.PAYLOAD_SECRET }}"
 
-      - name: build-frontend
-        uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v3
         with:
           context: .
           file: ./www/Dockerfile
