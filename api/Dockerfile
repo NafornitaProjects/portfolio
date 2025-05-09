@@ -11,9 +11,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app /app
 COPY api/ api/
-RUN --mount=type=secret,id=DATABASE_URI --mount=type=secret,id=PAYLOAD_SECRET \
-    export MONGODB_URI="$(cat /run/secrets/DATABASE_URI)" \
-           PAYLOAD_SECRET="$(cat /run/secrets/PAYLOAD_SECRET)" && \
+RUN --mount=type=secret,id=mongodb_uri --mount=type=secret,id=payload_secret \
+    export MONGODB_URI="$(cat /run/secrets/mongodb_uri)" \
+    PAYLOAD_SECRET="$(cat /run/secrets/payload_secret)" && \
     pnpm --filter ./api... run build
 
 FROM node:slim AS runner
