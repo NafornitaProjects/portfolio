@@ -49,7 +49,7 @@ jobs:
 
   deploy-api:
     needs: build-push-api
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, k8s]
     steps:
       - name: Set up kubectl & kubeconfig
         uses: azure/setup-kubectl@v3
@@ -114,7 +114,7 @@ jobs:
 
   deploy-www:
     needs: build-push-www
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, k8s]
     steps:
       - name: Set up kubectl & kubeconfig
         uses: azure/setup-kubectl@v3
