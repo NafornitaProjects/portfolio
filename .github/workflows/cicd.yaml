@@ -1,109 +1,196 @@
 name: CI/CD Monorepo
-
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-and-push:
+  validate-secrets:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
+    steps:
+      - name: Validate secrets
+        run: |
+          die() { echo "::error::$1"; exit 1; }
+          [[ -z "$DATABASE_URI"      ]] && die "DATABASE_URI not set"
+          [[ $DATABASE_URI =~ ^mongodb://|^mongodb\+srv:// ]] || \
+            die "DATABASE_URI must start with mongodb:// or mongodb+srv://"
+          [[ -z "$PAYLOAD_SECRET"    ]] && die "PAYLOAD_SECRET not set"
+          [[ -z "$KUBE_CONFIG"       ]] && die "KUBE_CONFIG not set"
+        env:
+          DATABASE_URI:   ${{ secrets.DATABASE_URI }}
+          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+          KUBE_CONFIG:    ${{ secrets.KUBE_CONFIG }}
+
+  build-push-api:
+    needs: validate-secrets
+    runs-on: ubuntu-latest
+    permissions: { packages: write }
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      # Secret validation step (without exposing values)
-      - name: Validate Secrets
-        run: |
-          if [ -z "$DATABASE_URI" ]; then
-            echo "::error::DATABASE_URI secret is not set"
-            exit 1
-          fi
-
-          if [[ ! "$DATABASE_URI" =~ ^mongodb:// && ! "$DATABASE_URI" =~ ^mongodb\+srv:// ]]; then
-            echo "::error::DATABASE_URI must start with mongodb:// or mongodb+srv://"
-            exit 1
-          fi
-
-          if [ -z "$PAYLOAD_SECRET" ]; then
-            echo "::error::PAYLOAD_SECRET secret is not set"
-            exit 1
-          fi
-
-          echo "All secrets validated successfully"
-        env:
-          DATABASE_URI: ${{ secrets.DATABASE_URI }}
-          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
-
+          username:  ${{ secrets.REGISTRY_USERNAME }}
+          password:  ${{ secrets.REGISTRY_PASSWORD }}
       - uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./api/Dockerfile
-          push: true
+          file:   ./api/Dockerfile
+          push:   true
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          # Pass only as secrets, not as build args
           secrets: |
             mongodb_uri=${{ secrets.DATABASE_URI }}
             payload_secret=${{ secrets.PAYLOAD_SECRET }}
 
+  build-push-www:
+    needs: validate-secrets
+    runs-on: ubuntu-latest
+    permissions: { packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v2
+        with:
+          registry: ${{ secrets.REGISTRY }}
+          username:  ${{ secrets.REGISTRY_USERNAME }}
+          password:  ${{ secrets.REGISTRY_PASSWORD }}
       - uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./www/Dockerfile
-          push: true
+          file:   ./www/Dockerfile
+          push:   true
           tags: |
             ${{ secrets.REGISTRY }}/www:${{ github.sha }}
             ${{ secrets.REGISTRY }}/www:latest
 
-  deploy:
-    needs: build-and-push
+  deploy-api:
+    needs: build-push-api
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/checkout@v4
-        with:
-          repository: NafornitaProjects/helm-charts
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: helm-charts
-
-      - uses: azure/setup-kubectl@v3
-        with:
-          version: latest
-
-      - uses: azure/setup-helm@v1
-
+      - name: Set up kubectl & kubeconfig
+        uses: azure/setup-kubectl@v3
       - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
-          export KUBECONFIG=$PWD/kubeconfig
+          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
+      - name: Apply API manifests
+        env:
+          IMAGE:  ${{ secrets.REGISTRY }}/api:${{ github.sha }}
+        run: |
+          # -- Deployment + Service + VirtualService for api.edwardnafornita.com
+          kubectl apply -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: api
+            namespace: default
+          spec:
+            replicas: 1
+            selector:
+              matchLabels: { app: api }
+            template:
+              metadata: { labels: { app: api } }
+              spec:
+                containers:
+                  - name: api
+                    image: ${IMAGE}
+                    ports: [{ containerPort: 3000 }]
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: api-service
+            namespace: default
+          spec:
+            selector: { app: api }
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 3000
+          ---
+          apiVersion: networking.istio.io/v1alpha3
+          kind: VirtualService
+          metadata:
+            name: api-virtualservice
+            namespace: istio-system
+          spec:
+            hosts: [ "api.edwardnafornita.com" ]
+            gateways: [ "edwardnafornita-gateway" ]
+            http:
+              - match:
+                  - port: 80
+                redirect: { scheme: https }
+              - match:
+                  - uri: { prefix: "/" }
+                route:
+                  - destination:
+                      host: api-service.default.svc.cluster.local
+                      port: { number: 80 }
+          EOF
+
+  deploy-www:
+    needs: build-push-www
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up kubectl & kubeconfig
+        uses: azure/setup-kubectl@v3
       - run: |
-          mkdir -p manifests
-          helm template api ./helm-charts/api \
-            --namespace prod \
-            --set image.repository=${{ secrets.REGISTRY }}/api \
-            --set image.tag=${{ github.sha }} \
-            > manifests/api.yaml
-          helm template www ./helm-charts/www \
-            --namespace prod \
-            --set image.repository=${{ secrets.REGISTRY }}/www \
-            --set image.tag=${{ github.sha }} \
-            > manifests/www.yaml
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
-      - run: kubectl apply -f manifests/
+      - name: Apply WWW manifests
+        env:
+          IMAGE:  ${{ secrets.REGISTRY }}/www:${{ github.sha }}
+        run: |
+          # -- Deployment + Service + VirtualService for www.edwardnafornita.com
+          kubectl apply -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: www
+            namespace: default
+          spec:
+            replicas: 1
+            selector:
+              matchLabels: { app: www }
+            template:
+              metadata: { labels: { app: www } }
+              spec:
+                containers:
+                  - name: www
+                    image: ${IMAGE}
+                    ports: [{ containerPort: 80 }]
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: www-service
+            namespace: default
+          spec:
+            selector: { app: www }
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 80
+          ---
+          apiVersion: networking.istio.io/v1alpha3
+          kind: VirtualService
+          metadata:
+            name: www-virtualservice
+            namespace: istio-system
+          spec:
+            hosts: [ "www.edwardnafornita.com" ]
+            gateways: [ "edwardnafornita-gateway" ]
+            http:
+              - match:
+                  - port: 80
+                redirect: { scheme: https }
+              - match:
+                  - uri: { prefix: "/" }
+                route:
+                  - destination:
+                      host: www-service.default.svc.cluster.local
+                      port: { number: 80 }
+          EOF
