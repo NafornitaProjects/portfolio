@@ -4,24 +4,7 @@ on:
     branches: [ main ]
 
 jobs:
-  validate-secrets:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate secrets
-        run: |
-          die() { echo "::error::$1"; exit 1; }
-          [[ -z "$DATABASE_URI"      ]] && die "DATABASE_URI not set"
-          [[ $DATABASE_URI =~ ^mongodb://|^mongodb\+srv:// ]] || \
-            die "DATABASE_URI must start with mongodb:// or mongodb+srv://"
-          [[ -z "$PAYLOAD_SECRET"    ]] && die "PAYLOAD_SECRET not set"
-          [[ -z "$KUBE_CONFIG"       ]] && die "KUBE_CONFIG not set"
-        env:
-          DATABASE_URI:   ${{ secrets.DATABASE_URI }}
-          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
-          KUBE_CONFIG:    ${{ secrets.KUBE_CONFIG }}
-
   build-push-api:
-    needs: validate-secrets
     runs-on: ubuntu-latest
     permissions: { packages: write }
     steps:
@@ -45,7 +28,6 @@ jobs:
             payload_secret=${{ secrets.PAYLOAD_SECRET }}
 
   build-push-www:
-    needs: validate-secrets
     runs-on: ubuntu-latest
     permissions: { packages: write }
     steps:
