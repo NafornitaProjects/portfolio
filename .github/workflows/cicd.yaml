@@ -22,7 +22,30 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - uses: docker/build-push-action@v3
+      # Secret validation step (without exposing values)
+      - name: Validate Secrets
+        run: |
+          if [ -z "$DATABASE_URI" ]; then
+            echo "::error::DATABASE_URI secret is not set"
+            exit 1
+          fi
+
+          if [[ ! "$DATABASE_URI" =~ ^mongodb:// && ! "$DATABASE_URI" =~ ^mongodb\+srv:// ]]; then
+            echo "::error::DATABASE_URI must start with mongodb:// or mongodb+srv://"
+            exit 1
+          fi
+
+          if [ -z "$PAYLOAD_SECRET" ]; then
+            echo "::error::PAYLOAD_SECRET secret is not set"
+            exit 1
+          fi
+
+          echo "All secrets validated successfully"
+        env:
+          DATABASE_URI: ${{ secrets.DATABASE_URI }}
+          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+
+      - uses: docker/build-push-action@v4
         with:
           context: .
           file: ./api/Dockerfile
@@ -30,14 +53,12 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          build-args: |
-            MONGODB_URI=${{ secrets.DATABASE_URI }}
-            PAYLOAD_SECRET=${{ secrets.PAYLOAD_SECRET }}
+          # Pass only as secrets, not as build args
           secrets: |
             mongodb_uri=${{ secrets.DATABASE_URI }}
             payload_secret=${{ secrets.PAYLOAD_SECRET }}
 
-      - uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v4
         with:
           context: .
           file: ./www/Dockerfile

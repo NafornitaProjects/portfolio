@@ -12,17 +12,22 @@ WORKDIR /app
 COPY --from=deps /app /app
 COPY api/ api/
 
-# Use ARG to receive build arguments
-ARG MONGODB_URI
-ARG PAYLOAD_SECRET
-
-# Properly use secrets with both mount and env vars approach
+# Use only secret mounts without ARG or ENV
 RUN --mount=type=secret,id=mongodb_uri \
     --mount=type=secret,id=payload_secret \
-    export MONGODB_URI="${MONGODB_URI:-$(cat /run/secrets/mongodb_uri 2>/dev/null || echo '')}" \
-    PAYLOAD_SECRET="${PAYLOAD_SECRET:-$(cat /run/secrets/payload_secret 2>/dev/null || echo '')}" && \
-    echo "Building with secrets..." && \
-    pnpm --filter ./api... run build
+    echo "Reading secrets from mounted files..." && \
+    # Use secrets only at build time without persisting in ENV
+    MONGODB_URI="$(cat /run/secrets/mongodb_uri)" \
+    PAYLOAD_SECRET="$(cat /run/secrets/payload_secret)" \
+    # Validate MongoDB URI format
+    bash -c '\
+      if [[ ! "${MONGODB_URI}" =~ ^mongodb:// && ! "${MONGODB_URI}" =~ ^mongodb\+srv:// ]]; then \
+        echo "ERROR: MongoDB URI must start with mongodb:// or mongodb+srv://"; \
+        exit 1; \
+      fi; \
+      echo "Building with valid secrets..."; \
+      pnpm --filter ./api... run build; \
+    '
 
 FROM node:slim AS runner
 WORKDIR /app/api
