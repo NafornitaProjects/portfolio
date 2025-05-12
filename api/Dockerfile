@@ -21,8 +21,8 @@ RUN if [ ! -f api/next.config.js ]; then \
     fi
 
 # Use a secure approach with environment variables for Next.js build
-RUN --mount=type=secret,id=mongodb_uri \
-    --mount=type=secret,id=payload_secret \
+RUN --mount=type=secret,id=mongodb_uri,target=/run/secrets/mongodb_uri \
+    --mount=type=secret,id=payload_secret,target=/run/secrets/payload_secret \
     MONGODB_URI=$(cat /run/secrets/mongodb_uri) \
     PAYLOAD_SECRET=$(cat /run/secrets/payload_secret) \
     bash -c '\
