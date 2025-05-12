@@ -95,12 +95,12 @@ jobs:
 
       - run: |
           mkdir -p manifests
-          helm template api helm-charts/api \
+          helm template api ./helm-charts/api \
             --namespace prod \
             --set image.repository=${{ secrets.REGISTRY }}/api \
             --set image.tag=${{ github.sha }} \
             > manifests/api.yaml
-          helm template www helm-charts/www \
+          helm template www ./helm-charts/www \
             --namespace prod \
             --set image.repository=${{ secrets.REGISTRY }}/www \
             --set image.tag=${{ github.sha }} \
