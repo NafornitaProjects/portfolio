@@ -18,8 +18,7 @@ WORKDIR /app/www
 COPY www/ ./
 COPY --from=deps /app/node_modules /app/node_modules
 
-RUN pnpm run build \
- && pnpm run export
+RUN pnpm run build
 
 FROM nginx:stable-alpine AS runner
 WORKDIR /usr/share/nginx/html
