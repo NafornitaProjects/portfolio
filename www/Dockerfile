@@ -1,20 +1,29 @@
 FROM node:slim AS base
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@10 --activate
+
+RUN corepack enable \
+ && corepack prepare pnpm@latest --activate
 
 FROM base AS deps
 WORKDIR /app
+
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY www/package.json www/
-RUN pnpm install --frozen-lockfile --filter www...
+COPY www/package.json www/package.json
+
+RUN pnpm install --frozen-lockfile --filter ./www...
 
 FROM deps AS builder
 WORKDIR /app/www
+
 COPY www/ ./
-COPY --from=deps /app/node_modules ./node_modules
-RUN pnpm run build && pnpm run export
+COPY --from=deps /app/node_modules /app/node_modules
+
+RUN pnpm run build
 
 FROM nginx:stable-alpine AS runner
-COPY --from=builder /app/www/out /usr/share/nginx/html
+WORKDIR /usr/share/nginx/html
+
+COPY --from=builder /app/www/out ./
+
 EXPOSE 80
-CMD ["nginx","-g","daemon off;"]
+CMD ["nginx", "-g", "daemon off;"]

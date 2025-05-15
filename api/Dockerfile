@@ -11,14 +11,19 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app /app
 COPY api/ api/
+ARG MONGODB_URI
+ARG PAYLOAD_SECRET
+RUN printf "MONGODB_URI=%s\nPAYLOAD_SECRET=%s\n" "$MONGODB_URI" "$PAYLOAD_SECRET" > api/.env.local
 RUN cd api && pnpm run build
+RUN rm api/.env.local
 
 FROM node:slim AS runner
 WORKDIR /app/api
 ENV NODE_ENV=production
 COPY --from=builder /app/api/.next .next
+COPY --from=builder /app/api/public public
+COPY --from=builder /app/api/package.json package.json
 COPY --from=deps /app/node_modules node_modules
-COPY api/package.json ./
 RUN addgroup --system app && adduser --system --ingroup app app
 USER app
 EXPOSE 3000
