@@ -29,9 +29,9 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          build-args: |
-            MONGODB_URI=${{ secrets.DATABASE_URI }}
-            PAYLOAD_SECRET=${{ secrets.PAYLOAD_SECRET }}
+          secrets: |
+            id=MONGODB_URI,src=${{ secrets.DATABASE_URI }}
+            id=PAYLOAD_SECRET,src=${{ secrets.PAYLOAD_SECRET }}
 
   build-push-www:
     runs-on: ubuntu-latest
