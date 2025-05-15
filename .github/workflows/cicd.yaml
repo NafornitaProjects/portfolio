@@ -2,36 +2,98 @@ name: CI/CD Monorepo
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-push-api:
+  build-api:
+    runs-on: [self-hosted, k8s]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Load kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
+
+      - name: Fetch secrets
+        run: |
+          MONGODB_B64=$(kubectl get secret api-credentials -n default -o jsonpath="{.data.MONGODB_URI}")
+          PAYLOAD_B64=$(kubectl get secret api-credentials -n default -o jsonpath="{.data.PAYLOAD_SECRET}")
+          echo "$MONGODB_B64" | base64 -d > MONGODB_URI.txt
+          echo "$PAYLOAD_B64" | base64 -d > PAYLOAD_SECRET.txt
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image (no push)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: api/Dockerfile
+          push: false
+          cache-to: type=inline
+          secrets: |
+            id=MONGODB_URI,src=MONGODB_URI.txt
+            id=PAYLOAD_SECRET,src=PAYLOAD_SECRET.txt
+          tags: |
+            api:${{ github.sha }}
+
+  push-api:
+    needs: build-api
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build and push API image
+      - name: Push API image
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./api/Dockerfile
+          file: api/Dockerfile
           push: true
+          cache-from: type=inline
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
 
-  build-push-www:
+  build-www:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build WWW image (no push)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: www/Dockerfile
+          push: false
+          cache-to: type=inline
+          tags: |
+            www:${{ github.sha }}
+
+  push-www:
+    needs: build-www
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,38 +101,36 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build and push WWW image
+      - name: Push WWW image
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./www/Dockerfile
+          file: www/Dockerfile
           push: true
+          cache-from: type=inline
           tags: |
             ${{ secrets.REGISTRY }}/www:${{ github.sha }}
             ${{ secrets.REGISTRY }}/www:latest
 
   deploy-api:
-    needs: build-push-api
+    needs: push-api
     runs-on: [self-hosted, k8s]
 
     steps:
-      - name: Set up kubectl & kubeconfig
-        uses: azure/setup-kubectl@v3
-
-      - run: |
+      - uses: azure/setup-kubectl@v3
+      - name: Load kubeconfig
+        run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
-      - name: Apply API manifests (use k8s Secret)
+      - name: Apply API manifests (locked-down)
         env:
           IMAGE: ${{ secrets.REGISTRY }}/api:${{ github.sha }}
         run: |
@@ -105,12 +165,29 @@ jobs:
             name: api-service
             namespace: default
           spec:
+            type: ClusterIP
             selector:
               app: api
             ports:
               - protocol: TCP
                 port: 80
                 targetPort: 3000
+          ---
+          apiVersion: networking.istio.io/v1alpha3
+          kind: Gateway
+          metadata:
+            name: internal-api-gateway
+            namespace: istio-system
+          spec:
+            selector:
+              istio: ingressgateway
+            servers:
+              - port:
+                  number: 80
+                  name: http-internal
+                  protocol: HTTP
+                hosts:
+                  - "api.edwardnafornita.com"
           ---
           apiVersion: networking.istio.io/v1alpha3
           kind: VirtualService
@@ -121,12 +198,8 @@ jobs:
             hosts:
               - "api.edwardnafornita.com"
             gateways:
-              - "edwardnafornita-gateway"
+              - internal-api-gateway
             http:
-              - match:
-                  - port: 80
-                redirect:
-                  scheme: https
               - match:
                   - uri:
                       prefix: "/"
@@ -154,14 +227,13 @@ jobs:
           EOF
 
   deploy-www:
-    needs: build-push-www
+    needs: push-www
     runs-on: [self-hosted, k8s]
 
     steps:
-      - name: Set up kubectl & kubeconfig
-        uses: azure/setup-kubectl@v3
-
-      - run: |
+      - uses: azure/setup-kubectl@v3
+      - name: Load kubeconfig
+        run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
@@ -190,41 +262,4 @@ jobs:
                     image: ${IMAGE}
                     ports:
                       - containerPort: 80
-          ---
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: www-service
-            namespace: default
-          spec:
-            selector:
-              app: www
-            ports:
-              - protocol: TCP
-                port: 80
-                targetPort: 80
-          ---
-          apiVersion: networking.istio.io/v1alpha3
-          kind: VirtualService
-          metadata:
-            name: www-virtualservice
-            namespace: istio-system
-          spec:
-            hosts:
-              - "www.edwardnafornita.com"
-            gateways:
-              - "edwardnafornita-gateway"
-            http:
-              - match:
-                  - port: 80
-                redirect:
-                  scheme: https
-              - match:
-                  - uri:
-                      prefix: "/"
-                route:
-                  - destination:
-                      host: www-service.default.svc.cluster.local
-                      port:
-                        number: 80
           EOF
