@@ -12,13 +12,15 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app /app
 COPY api/ api/
-RUN --mount=type=secret,id=mongodb_uri --mount=type=secret,id=payload_secret \
+
+RUN --mount=type=secret,id=MONGODB_URI \
+    --mount=type=secret,id=PAYLOAD_SECRET \
     bash -c "\
-      MONGODB_URI=$(cat /run/secrets/mongodb_uri) && \
-      PAYLOAD_SECRET=$(cat /run/secrets/payload_secret) && \
-      printf 'MONGODB_URI=%s\nPAYLOAD_SECRET=%s\n' \"$MONGODB_URI\" \"$PAYLOAD_SECRET\" > api/.env.local && \
+      MONGODB_URI=\$(cat /run/secrets/MONGODB_URI) && \
+      PAYLOAD_SECRET=\$(cat /run/secrets/PAYLOAD_SECRET) && \
+      printf 'MONGODB_URI=%s\nPAYLOAD_SECRET=%s\n' \"\$MONGODB_URI\" \"\$PAYLOAD_SECRET\" > api/.env.local && \
       cd api && pnpm run build && \
-      rm api/.env.local\
+      rm api/.env.local \
     "
 
 FROM node:slim AS runner
