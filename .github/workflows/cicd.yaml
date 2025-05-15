@@ -144,7 +144,7 @@ jobs:
 
   deploy-www:
     needs: build-and-push-www
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, k8s]
     permissions:
       contents: read
     steps:
