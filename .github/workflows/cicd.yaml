@@ -6,15 +6,21 @@ on:
 jobs:
   build-push-api:
     runs-on: ubuntu-latest
-    permissions: { packages: write }
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username:  ${{ secrets.REGISTRY_USERNAME }}
           password:  ${{ secrets.REGISTRY_PASSWORD }}
+
       - uses: docker/build-push-action@v4
         with:
           context: .
@@ -23,21 +29,27 @@ jobs:
           tags: |
             ${{ secrets.REGISTRY }}/api:${{ github.sha }}
             ${{ secrets.REGISTRY }}/api:latest
-          secrets: |
-            mongodb_uri=${{ secrets.DATABASE_URI }}
-            payload_secret=${{ secrets.PAYLOAD_SECRET }}
+          build-args: |
+            MONGODB_URI=${{ secrets.DATABASE_URI }}
+            PAYLOAD_SECRET=${{ secrets.PAYLOAD_SECRET }}
 
   build-push-www:
     runs-on: ubuntu-latest
-    permissions: { packages: write }
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username:  ${{ secrets.REGISTRY_USERNAME }}
           password:  ${{ secrets.REGISTRY_PASSWORD }}
+
       - uses: docker/build-push-action@v4
         with:
           context: .
@@ -50,18 +62,19 @@ jobs:
   deploy-api:
     needs: build-push-api
     runs-on: [self-hosted, k8s]
+
     steps:
       - name: Set up kubectl & kubeconfig
         uses: azure/setup-kubectl@v3
+
       - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
-      - name: Apply API manifests
+      - name: Apply API manifests (Deployment, Service, VirtualService, AuthPolicy)
         env:
-          IMAGE:  ${{ secrets.REGISTRY }}/api:${{ github.sha }}
+          IMAGE: ${{ secrets.REGISTRY }}/api:${{ github.sha }}
         run: |
-          # -- Deployment + Service + VirtualService for api.edwardnafornita.com
           kubectl apply -f - <<EOF
           apiVersion: apps/v1
           kind: Deployment
@@ -71,14 +84,18 @@ jobs:
           spec:
             replicas: 1
             selector:
-              matchLabels: { app: api }
+              matchLabels:
+                app: api
             template:
-              metadata: { labels: { app: api } }
+              metadata:
+                labels:
+                  app: api
               spec:
                 containers:
                   - name: api
                     image: ${IMAGE}
-                    ports: [{ containerPort: 3000 }]
+                    ports:
+                      - containerPort: 3000
           ---
           apiVersion: v1
           kind: Service
@@ -86,7 +103,8 @@ jobs:
             name: api-service
             namespace: default
           spec:
-            selector: { app: api }
+            selector:
+              app: api
             ports:
               - protocol: TCP
                 port: 80
@@ -98,41 +116,57 @@ jobs:
             name: api-virtualservice
             namespace: istio-system
           spec:
-            hosts: [ "api.edwardnafornita.com" ]
-            gateways: [ "edwardnafornita-gateway" ]
+            hosts:
+              - "api.edwardnafornita.com"
+            gateways:
+              - "edwardnafornita-gateway"
             http:
               - match:
                   - port: 80
-                redirect: { scheme: https }
+                redirect:
+                  scheme: https
               - match:
-                  - uri: { prefix: "/" }
-                    - sourceIP: ["192.168.50.0/24"]
+                  - uri:
+                      prefix: "/"
                 route:
                   - destination:
                       host: api-service.default.svc.cluster.local
-                      port: { number: 80 }
-              - match:
-                  - uri: { prefix: "/" }
-                route:
-                  - destination:
-                      host: forbidden
+                      port:
+                        number: 80
+          ---
+          apiVersion: security.istio.io/v1beta1
+          kind: AuthorizationPolicy
+          metadata:
+            name: api-internal-only
+            namespace: default
+          spec:
+            selector:
+              matchLabels:
+                app: api
+            action: ALLOW
+            rules:
+              - from:
+                  - source:
+                      ipBlocks:
+                        - "192.168.50.0/24"
           EOF
 
   deploy-www:
     needs: build-push-www
     runs-on: [self-hosted, k8s]
+
     steps:
       - name: Set up kubectl & kubeconfig
         uses: azure/setup-kubectl@v3
+
       - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
 
       - name: Apply WWW manifests
         env:
-          IMAGE:  ${{ secrets.REGISTRY }}/www:${{ github.sha }}
+          IMAGE: ${{ secrets.REGISTRY }}/www:${{ github.sha }}
         run: |
-          # -- Deployment + Service + VirtualService for www.edwardnafornita.com
           kubectl apply -f - <<EOF
           apiVersion: apps/v1
           kind: Deployment
@@ -142,14 +176,18 @@ jobs:
           spec:
             replicas: 1
             selector:
-              matchLabels: { app: www }
+              matchLabels:
+                app: www
             template:
-              metadata: { labels: { app: www } }
+              metadata:
+                labels:
+                  app: www
               spec:
                 containers:
                   - name: www
                     image: ${IMAGE}
-                    ports: [{ containerPort: 80 }]
+                    ports:
+                      - containerPort: 80
           ---
           apiVersion: v1
           kind: Service
@@ -157,7 +195,8 @@ jobs:
             name: www-service
             namespace: default
           spec:
-            selector: { app: www }
+            selector:
+              app: www
             ports:
               - protocol: TCP
                 port: 80
@@ -169,16 +208,21 @@ jobs:
             name: www-virtualservice
             namespace: istio-system
           spec:
-            hosts: [ "www.edwardnafornita.com" ]
-            gateways: [ "edwardnafornita-gateway" ]
+            hosts:
+              - "www.edwardnafornita.com"
+            gateways:
+              - "edwardnafornita-gateway"
             http:
               - match:
                   - port: 80
-                redirect: { scheme: https }
+                redirect:
+                  scheme: https
               - match:
-                  - uri: { prefix: "/" }
+                  - uri:
+                      prefix: "/"
                 route:
                   - destination:
                       host: www-service.default.svc.cluster.local
-                      port: { number: 80 }
+                      port:
+                        number: 80
           EOF
