@@ -1,4 +1,4 @@
-name: Pipeline
+name: CI/CD Monorepo
 on:
   push:
     branches: [ main ]
@@ -10,34 +10,44 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      MONGODB_URI: ${{ secrets.DATABASE_URI }}
+      PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Setup Node & pnpm
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm install -g pnpm@10
 
-      - name: Create secret files
+      - name: Build Next.js API
         run: |
-          echo "${{ secrets.DATABASE_URI }}" > MONGODB_URI.txt
-          echo "${{ secrets.PAYLOAD_SECRET }}"   > PAYLOAD_SECRET.txt
+          cd api
+          echo "MONGODB_URI=$MONGODB_URI" > .env.local
+          echo "PAYLOAD_SECRET=$PAYLOAD_SECRET" >> .env.local
+          pnpm install --frozen-lockfile
+          pnpm run build
 
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - uses: docker/build-push-action@v4
-        with:
-          context: .
-          file:    api/Dockerfile
-          push:    true
-          tags: |
-            ${{ secrets.REGISTRY }}/api:${{ github.sha }}
-            ${{ secrets.REGISTRY }}/api:latest
-          secrets: |
-            id=MONGODB_URI,src=MONGODB_URI.txt
-            id=PAYLOAD_SECRET,src=PAYLOAD_SECRET.txt
+      - name: Build & Push API Image
+        run: |
+          docker build . \
+            -f api/Dockerfile \
+            --build-arg MONGODB_URI="$MONGODB_URI" \
+            --build-arg PAYLOAD_SECRET="$PAYLOAD_SECRET" \
+            -t ${{ secrets.REGISTRY }}/api:${{ github.sha }} \
+            -t ${{ secrets.REGISTRY }}/api:latest
+          docker push ${{ secrets.REGISTRY }}/api:${{ github.sha }}
+          docker push ${{ secrets.REGISTRY }}/api:latest
 
   build-and-push-www:
     runs-on: ubuntu-latest
@@ -48,35 +58,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Setup Node & pnpm
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm install -g pnpm@10
 
+      - name: Build static WWW
+        run: |
+          cd www
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm run export
+
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v2
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - uses: docker/build-push-action@v4
-        with:
-          context: .
-          file:    www/Dockerfile
-          push:    true
-          tags: |
-            ${{ secrets.REGISTRY }}/www:${{ github.sha }}
-            ${{ secrets.REGISTRY }}/www:latest
-
+      - name: Build & Push WWW Image
+        run: |
+          docker build . \
+            -f www/Dockerfile \
+            -t ${{ secrets.REGISTRY }}/www:${{ github.sha }} \
+            -t ${{ secrets.REGISTRY }}/www:latest
+          docker push ${{ secrets.REGISTRY }}/www:${{ github.sha }}
+          docker push ${{ secrets.REGISTRY }}/www:latest
 
   deploy-api:
     needs: build-and-push-api
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: azure/setup-kubectl@v3
       - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
-      - run: |
+
+      - name: Deploy API (internal only)
+        run: |
           kubectl apply -f - <<EOF
           apiVersion: apps/v1
           kind: Deployment
@@ -116,26 +140,6 @@ jobs:
               port: 80
               targetPort: 3000
           ---
-          apiVersion: networking.istio.io/v1alpha3
-          kind: VirtualService
-          metadata:
-            name: api-virtualservice
-            namespace: istio-system
-          spec:
-            hosts:
-            - "api.edwardnafornita.com"
-            gateways:
-            - internal-api-gateway
-            http:
-            - match:
-              - uri:
-                  prefix: "/"
-              route:
-              - destination:
-                  host: api-service.default.svc.cluster.local
-                  port:
-                    number: 80
-          ---
           apiVersion: security.istio.io/v1beta1
           kind: AuthorizationPolicy
           metadata:
@@ -155,15 +159,18 @@ jobs:
 
   deploy-www:
     needs: build-and-push-www
-    runs-on: [self-hosted, k8s]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: azure/setup-kubectl@v3
       - run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
-      - run: |
+
+      - name: Deploy WWW (public)
+        run: |
           kubectl apply -f - <<EOF
           apiVersion: apps/v1
           kind: Deployment
