@@ -51,7 +51,7 @@ jobs:
       - name: Build and push WWW image
         uses: docker/build-push-action@v4
         with:
-          context: ./www
+          context: .
           file: ./www/Dockerfile
           push: true
           tags: |
