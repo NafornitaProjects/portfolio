@@ -1,0 +1,30 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-package:
+    uses: NafornitaProjects/GitHub-Actions/.github/workflows/build-and-package-image.yaml@main
+    with:
+      app_name: edwardnafornita-com
+    secrets:
+      REGISTRY: ${{ secrets.REGISTRY }}
+
+  prepare-env:
+    needs: build-and-package
+    uses: NafornitaProjects/GitHub-Actions/.github/workflows/prepare-environment.yaml@main
+    with:
+      app_name: edwardnafornita-com
+      environment: staging
+    secrets: {}
+
+  deploy-staging:
+    needs: prepare-env
+    uses: NafornitaProjects/GitHub-Actions/.github/workflows/deploy-to-staging.yaml@main
+    with:
+      app_name: edwardnafornita-com
+      image_tag: ${{ needs.build-and-package.outputs.image_tag }}
+    secrets:
+      REGISTRY: ${{ secrets.REGISTRY }}
