@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "fe": "nx start edwardnafornita-com"
+    "start": "nx start edwardnafornita-com"
   },
   "private": true,
   "dependencies": {
