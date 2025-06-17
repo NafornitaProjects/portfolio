@@ -20,7 +20,7 @@ RUN corepack enable && corepack prepare pnpm@8.15.4 --activate
 
 COPY --from=builder /app/dist/apps/edwardnafornita-com ./
 COPY --from=builder /app/apps/edwardnafornita-com/public ./public
-COPY --from=builder /app/apps/edwardnafornita-com/package.json ./
+COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-lock.yaml ./
 
 CMD ["pnpm", "start", "--", "-p", "80"]
