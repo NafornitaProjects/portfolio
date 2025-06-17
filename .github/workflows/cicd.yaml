@@ -9,7 +9,7 @@ jobs:
     uses: NafornitaProjects/GitHub-Actions/.github/workflows/build-and-package-image.yaml@main
     with:
       app_name: edwardnafornita-com
-      dockerfile: apps/portfolio/Dockerfile
+      dockerfile: apps/edwardnafornita-com/Dockerfile
       context: .
     secrets:
       REGISTRY: ${{ secrets.REGISTRY }}
