@@ -1,3 +1,7 @@
+provider "kubernetes" {
+  insecure = true
+}
+
 resource "kubernetes_namespace" "app" {
   metadata {
     name = var.namespace
