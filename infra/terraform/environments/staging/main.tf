@@ -1,5 +1,4 @@
 provider "kubernetes" {
-  config_path = "./kubeconfig"
   insecure = true
 }
 
@@ -20,8 +19,6 @@ resource "kubernetes_ingress_v1" "app_ingress" {
   }
 
   spec {
-    ingress_class_name = "traefik"
-
     tls {
       hosts       = [var.domain]
       secret_name = "${var.app_name}-tls"
