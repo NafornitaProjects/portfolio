@@ -1,7 +1,3 @@
-provider "kubernetes" {
-  config_path = "~/.kube/config"
-}
-
 resource "kubernetes_namespace" "app" {
   metadata {
     name = var.namespace
@@ -13,14 +9,16 @@ resource "kubernetes_ingress_v1" "app_ingress" {
     name      = "${var.app_name}-ingress"
     namespace = var.namespace
     annotations = {
-      "cert-manager.io/cluster-issuer" = "cloudflare-issuer"
+      "cert-manager.io/cluster-issuer"                   = "cloudflare-issuer"
       "traefik.ingress.kubernetes.io/router.entrypoints" = "websecure"
     }
   }
 
   spec {
+    ingress_class_name = "traefik"
+
     tls {
-      hosts      = [var.domain]
+      hosts       = [var.domain]
       secret_name = "${var.app_name}-tls"
     }
 
