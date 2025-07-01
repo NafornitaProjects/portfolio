@@ -20,7 +20,7 @@ resource "kubernetes_ingress_v1" "app_ingress" {
 
   spec {
     tls {
-      hosts      = [var.domain]
+      hosts       = [var.domain]
       secret_name = "${var.app_name}-tls"
     }
 

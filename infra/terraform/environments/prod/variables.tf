@@ -4,12 +4,11 @@ variable "app_name" {
 }
 
 variable "namespace" {
-  description = "Namespace where the app will be deployed"
+  description = "Namespace to deploy resources into"
   type        = string
-  default     = "default"
 }
 
 variable "domain" {
-  description = "Fully qualified domain name for the ingress"
+  description = "Domain to expose the app on"
   type        = string
 }
