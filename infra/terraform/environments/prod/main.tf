@@ -1,3 +1,16 @@
+terraform {
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.19"
+    }
+  }
+}
+
+provider "kubernetes" {
+  config_path = pathexpand("~/.kube/config")
+}
+
 resource "kubernetes_namespace_v1" "ns" {
   metadata { name = var.namespace }
 }
