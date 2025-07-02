@@ -1,46 +1,53 @@
 provider "kubernetes" {
-  config_path = "~/.kube/config"
   insecure = true
 }
 
-resource "kubernetes_namespace" "app" {
-  metadata {
-    name = var.namespace
+resource "kubernetes_manifest" "ns" {
+  manifest = {
+    apiVersion = "v1"
+    kind       = "Namespace"
+    metadata = {
+      name = var.namespace
+    }
   }
+  # if the namespace already exists, don’t error
+  ignore_conflicts = true
 }
 
-resource "kubernetes_ingress_v1" "app_ingress" {
-  metadata {
-    name      = "${var.app_name}-ingress"
-    namespace = var.namespace
-    annotations = {
-      "cert-manager.io/cluster-issuer"                   = "cloudflare-issuer"
-      "traefik.ingress.kubernetes.io/router.entrypoints" = "websecure"
-    }
-  }
-
-  spec {
-    tls {
-      hosts       = [var.domain]
-      secret_name = "${var.app_name}-tls"
-    }
-
-    rule {
-      host = var.domain
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = "${var.app_name}-svc"
-              port {
-                number = 80
-              }
-            }
-          }
-        }
+resource "kubernetes_manifest" "ingress" {
+  manifest = {
+    apiVersion = "networking.k8s.io/v1"
+    kind       = "Ingress"
+    metadata = {
+      name      = "${var.app_name}-ingress"
+      namespace = var.namespace
+      annotations = {
+        "cert-manager.io/cluster-issuer"                   = "cloudflare-issuer"
+        "traefik.ingress.kubernetes.io/router.entrypoints" = "websecure"
       }
     }
+    spec = {
+      ingressClassName = "traefik"
+      tls = [{
+        hosts      = [var.domain]
+        secretName = "${var.app_name}-tls"
+      }]
+      rules = [{
+        host = var.domain
+        http = {
+          paths = [{
+            path     = "/"
+            pathType = "Prefix"
+            backend = {
+              service = {
+                name = "${var.app_name}-svc"
+                port = { number = 80 }
+              }
+            }
+          }]
+        }
+      }]
+    }
   }
+  ignore_conflicts = true
 }
