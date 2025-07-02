@@ -27,14 +27,14 @@ resource "kubernetes_ingress_v1" "ingress" {
   spec {
     ingress_class_name = "traefik"
     tls {
-      hosts      = [var.domain]
+      hosts       = [var.domain]
       secret_name = "${var.app_name}-tls"
     }
     rule {
       host = var.domain
       http {
         path {
-          path     = "/"
+          path      = "/"
           path_type = "Prefix"
           backend {
             service {
