@@ -10,8 +10,6 @@ resource "kubernetes_manifest" "ns" {
       name = var.namespace
     }
   }
-  # if the namespace already exists, don’t error
-  ignore_conflicts = true
 }
 
 resource "kubernetes_manifest" "ingress" {
@@ -49,5 +47,4 @@ resource "kubernetes_manifest" "ingress" {
       }]
     }
   }
-  ignore_conflicts = true
 }
