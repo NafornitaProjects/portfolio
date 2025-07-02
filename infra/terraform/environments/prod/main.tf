@@ -8,8 +8,7 @@ terraform {
 }
 
 provider "kubernetes" {
-  load_config_file = true
-  config_path      = pathexpand("~/.kube/config")
+  config_path = pathexpand("~/.kube/config")
 }
 
 resource "kubernetes_namespace_v1" "ns" {
