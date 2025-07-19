@@ -2,11 +2,11 @@ name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  build-and-package:
-    uses: NafornitaProjects/GitHub-Actions/.github/workflows/build-and-package-image.yaml@main
+  build-image:
+    uses: NafornitaProjects/GitHub-Actions/.github/workflows/build-docker-image.yaml@main
     with:
       app_name: edwardnafornita-com
       dockerfile: apps/edwardnafornita-com/Dockerfile
@@ -14,19 +14,14 @@ jobs:
     secrets:
       REGISTRY: ${{ secrets.REGISTRY }}
 
-  prepare-env:
-    needs: build-and-package
-    uses: NafornitaProjects/GitHub-Actions/.github/workflows/prepare-environment.yaml@main
-    with:
-      app_name: edwardnafornita-com
-      environment: staging
-    secrets: {}
-
-  deploy-staging:
-    needs: prepare-env
-    uses: NafornitaProjects/GitHub-Actions/.github/workflows/deploy-to-staging.yaml@main
-    with:
-      app_name: edwardnafornita-com
-      image_tag: ${{ needs.build-and-package.outputs.image_tag }}
-    secrets:
-      REGISTRY: ${{ secrets.REGISTRY }}
+  sync-argocd:
+    needs: build-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync portfolio app in ArgoCD
+        uses: argoproj/argocd-action@v2.6.0
+        with:
+          server: ${{ secrets.ARGOCD_SERVER }}
+          username: ${{ secrets.ARGOCD_USERNAME }}
+          password: ${{ secrets.ARGOCD_PASSWORD }}
+          command: app sync edwardnafornita-com
