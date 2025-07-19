@@ -28,3 +28,4 @@ jobs:
         with:
           version: "2.6.7"
           command: "app sync portfolio-web"
+          options: "--grpc-web"
