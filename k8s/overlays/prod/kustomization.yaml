@@ -9,7 +9,7 @@ patchesStrategicMerge:
 images:
   - name: registry.edwardnafornita.com/edwardnafornita-com
     newName: registry.edwardnafornita.com/edwardnafornita-com
-    newTag: prod-<SEMVER_TAG>
+    newTag: latest
 
 configMapGenerator:
   - name: portfolio-prod-config
