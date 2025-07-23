@@ -1,27 +1,22 @@
-FROM node:20-alpine AS builder
-
+FROM node:20-slim AS deps
 WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
-RUN corepack enable && corepack prepare pnpm@8.15.4 --activate
-
+FROM deps AS build
 COPY . .
-
-RUN pnpm install --frozen-lockfile
-
 RUN pnpm nx build edwardnafornita-com
 
-FROM node:20-alpine AS runner
-
+FROM node:20-slim AS runner
 WORKDIR /app
-
 ENV NODE_ENV=production
-
-RUN corepack enable && corepack prepare pnpm@8.15.4 --activate
-
-COPY --from=builder /app/apps/edwardnafornita-com/.next ./.next
-COPY --from=builder /app/apps/edwardnafornita-com/public ./public
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-lock.yaml ./
-
-CMD ["pnpm", "start", "--", "-p", "80"]
+RUN corepack enable
+COPY --from=deps    /app/node_modules ./node_modules
+COPY --from=build   /app/apps/edwardnafornita-com/.next  ./.next
+COPY --from=build   /app/apps/edwardnafornita-com/public ./public
+COPY --from=build   /app/package.json          ./
+COPY --from=build   /app/pnpm-lock.yaml        ./
 EXPOSE 80
+CMD ["pnpm", "start", "--", "-p", "80"]
