@@ -6,7 +6,7 @@ patchesStrategicMerge:
   - patch-replicas.yaml
 images:
   - name: registry.edwardnafornita.com/edwardnafornita-com
-    newTag: dev-<COMMIT_SHA>
+    newTag: latest
 
 configMapGenerator:
   - name: portfolio-dev-config
