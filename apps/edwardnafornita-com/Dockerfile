@@ -7,7 +7,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 FROM deps AS build
 WORKDIR /app
-COPY nx.json workspace.json tsconfig.base.json ./
+COPY nx.json tsconfig.base.json ./
 COPY apps ./apps
 RUN pnpm nx build edwardnafornita-com
 
