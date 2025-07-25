@@ -20,5 +20,8 @@ COPY --from=build   /app/apps/edwardnafornita-com/.next  ./.next
 COPY --from=build   /app/apps/edwardnafornita-com/public ./public
 COPY --from=build   /app/package.json          ./
 COPY --from=build   /app/pnpm-lock.yaml        ./
+COPY --from=build   /app/pnpm-workspace.yaml   ./
+COPY --from=build   /app/nx.json               ./
+COPY --from=build   /app/tsconfig.base.json    ./
 EXPOSE 80
 CMD ["pnpm", "start", "--", "-p", "80"]
