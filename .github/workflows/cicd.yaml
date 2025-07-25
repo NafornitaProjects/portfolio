@@ -2,7 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 run-name: CI for ${{ github.event.pull_request.head.ref || github.ref_name }} ${{ github.event.pull_request.number && 'PR#' }}${{ github.event.pull_request.number || '' }}
 
@@ -17,6 +19,7 @@ jobs:
       REGISTRY: ${{ secrets.REGISTRY }}
 
   sync-argocd:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-image
     runs-on: self-hosted
     steps:
