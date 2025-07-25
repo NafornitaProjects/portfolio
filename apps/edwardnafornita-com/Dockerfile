@@ -9,7 +9,6 @@ FROM deps AS build
 WORKDIR /app
 COPY nx.json workspace.json tsconfig.base.json ./
 COPY apps ./apps
-COPY libs ./libs
 RUN pnpm nx build edwardnafornita-com
 
 FROM node:20-slim AS runner
