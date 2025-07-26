@@ -24,4 +24,4 @@ COPY --from=build   /app/pnpm-workspace.yaml   ./
 COPY --from=build   /app/nx.json               ./
 COPY --from=build   /app/tsconfig.base.json    ./
 EXPOSE 80
-CMD ["pnpm", "start", "--", "-p", "80"]
+CMD ["pnpm", "next", "start", "-p", "80"]
