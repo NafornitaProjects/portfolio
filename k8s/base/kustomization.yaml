@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
+  - deployment-payload-cms.yaml
+  - service-payload-cms.yaml
   - ingress.yaml
 
 commonLabels:

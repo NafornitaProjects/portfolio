@@ -1,0 +1,95 @@
+{
+  "name": "payload-cms",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/payload-cms/src",
+  "projectType": "application",
+  "tags": ["type:app", "framework:next", "cms:payload"],
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/payload-cms"
+      },
+      "configurations": {
+        "development": {
+          "outputPath": "apps/payload-cms"
+        },
+        "production": {}
+      }
+    },
+    "serve": {
+      "executor": "@nx/next:server",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "payload-cms:build",
+        "dev": true
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "payload-cms:build:development",
+          "dev": true
+        },
+        "production": {
+          "buildTarget": "payload-cms:build:production",
+          "dev": false
+        }
+      }
+    },
+    "export": {
+      "executor": "@nx/next:export",
+      "options": {
+        "buildTarget": "payload-cms:build:production"
+      }
+    },
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": [
+        "{projectRoot}/coverage"
+      ],
+      "options": {
+        "passWithNoTests": true,
+        "reportsDirectory": "../../coverage/apps/payload-cms"
+      }
+    },
+    "test:e2e": {
+      "executor": "@nx/playwright:playwright",
+      "outputs": ["{workspaceRoot}/dist/.playwright"],
+      "options": {
+        "config": "{projectRoot}/playwright.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "type-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "payload": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cross-env NODE_OPTIONS=--no-deprecation payload",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "generate:types": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "generate:importmap": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

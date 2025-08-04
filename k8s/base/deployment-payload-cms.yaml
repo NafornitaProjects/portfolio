@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payload-cms
+  labels:
+    app: portfolio-cms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: portfolio-cms
+  template:
+    metadata:
+      labels:
+        app: portfolio-cms
+    spec:
+      containers:
+        - name: portfolio-cms
+          image: registry.edwardnafornita.com/payload-cms:latest
+          ports:
+            - containerPort: 3000
+          livenessProbe:
+            httpGet:
+              path: /api/access/refresh
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/access/refresh
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          env:
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: payload-cms-secrets
+                  key: database-uri
+            - name: PAYLOAD_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: payload-cms-secrets
+                  key: payload-secret
+            - name: NEXT_PUBLIC_SERVER_URL
+              value: "https://edwardnafornita.com"
