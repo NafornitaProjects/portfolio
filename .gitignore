@@ -17,7 +17,6 @@ node_modules
 /.direnv/
 /docs
 /supabase
-
 # IDEs and editors
 /.idea
 .project
