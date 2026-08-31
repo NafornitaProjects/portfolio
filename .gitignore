@@ -10,6 +10,13 @@ out-tsc
 # dependencies
 node_modules
 
+# local Nix/direnv development shell
+/flake.nix
+/flake.lock
+/.envrc
+/.direnv/
+/docs
+/supabase
 # IDEs and editors
 /.idea
 .project
@@ -28,6 +35,8 @@ node_modules
 !.vscode/extensions.json
 
 # misc
+**/.env*
+!**/.env.example
 /.sass-cache
 /connect.lock
 /coverage
